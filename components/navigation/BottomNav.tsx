@@ -48,7 +48,7 @@ export const BottomNav: React.FC = () => {
 
       {/* Slide-up Drawer for "More" destinations */}
       <div
-        className={`fixed bottom-16 inset-x-0 bg-[#0E1524] border-t border-[#1E2C4A] z-45 rounded-t-2xl p-5 md:hidden transition-transform duration-300 ease-in-out shadow-2xl ${
+        className={`fixed bottom-16 inset-x-0 bg-[#0E1524] border-t border-[#1E2C4A] z-[45] rounded-t-2xl p-5 md:hidden transition-transform duration-300 ease-in-out shadow-2xl ${
           isDrawerOpen ? "translate-y-0" : "translate-y-full pointer-events-none"
         }`}
       >

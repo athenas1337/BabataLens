@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, TrendingUp, TrendingDown, Database, ArrowLeftRight } from "lucide-react";
 import { PriceChart } from "@/components/charts/PriceChart";
 import { TokenMarketData, PricePoint } from "@/lib/providers/interfaces";
@@ -31,24 +31,26 @@ export default function MarketsPage() {
         setSource(json.source.provider);
       }
 
-      // Generate points for display
-      const current = json.data?.currentPriceUsd || 100;
-      const points: PricePoint[] = [
-        { timestamp: Date.now() - 6 * 86400000, price: current * 0.95 },
-        { timestamp: Date.now() - 5 * 86400000, price: current * 0.97 },
-        { timestamp: Date.now() - 4 * 86400000, price: current * 0.96 },
-        { timestamp: Date.now() - 3 * 86400000, price: current * 0.99 },
-        { timestamp: Date.now() - 2 * 86400000, price: current * 0.98 },
-        { timestamp: Date.now() - 1 * 86400000, price: current * 1.01 },
-        { timestamp: Date.now(), price: current },
-      ];
-      setChartData(points);
+      // Load verified historical price points from the market provider
+      try {
+        const histRes = await fetch(`/api/market/${sym.toLowerCase()}/history?range=7d`);
+        const histJson = histRes.ok ? await histRes.json() : null;
+        setChartData(Array.isArray(histJson?.data) ? histJson.data : []);
+      } catch {
+        setChartData([]);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load market data");
     } finally {
       setLoading(false);
     }
   };
+
+  // Auto-load the default symbol on first mount
+  useEffect(() => {
+    handleSearch("BTC");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">

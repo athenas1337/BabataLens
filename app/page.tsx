@@ -22,22 +22,16 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadInitialChart() {
       try {
-        const res = await fetch("/api/market/btc");
+        const res = await fetch("/api/market/btc/history?range=7d");
         if (res.ok) {
-          // Attempt to load price chart
-          const mockPoints: PricePoint[] = [
-            { timestamp: Date.now() - 6 * 86400000, price: 61200 },
-            { timestamp: Date.now() - 5 * 86400000, price: 61850 },
-            { timestamp: Date.now() - 4 * 86400000, price: 63100 },
-            { timestamp: Date.now() - 3 * 86400000, price: 62400 },
-            { timestamp: Date.now() - 2 * 86400000, price: 63900 },
-            { timestamp: Date.now() - 1 * 86400000, price: 64150 },
-            { timestamp: Date.now(), price: 64250 },
-          ];
-          setChartData(mockPoints);
+          const json = await res.json();
+          // Only render verified provider data; never fabricate chart points
+          if (Array.isArray(json?.data) && json.data.length > 0) {
+            setChartData(json.data);
+          }
         }
       } catch {
-        // Handled
+        // Handled — chart shows its empty state
       } finally {
         setChartLoading(false);
       }

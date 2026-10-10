@@ -13,6 +13,17 @@ export const HeroBanner: React.FC = () => {
       <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
       <div className="absolute bottom-0 right-1/3 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
 
+      {/* Babata main-menu hologram art (decorative, desktop only) */}
+      <div className="absolute inset-y-0 right-0 w-1/2 hidden lg:block pointer-events-none opacity-30 [mask-image:linear-gradient(to_left,black,transparent)]">
+        <Image
+          src="/babata/hero.jpeg"
+          alt=""
+          fill
+          sizes="(min-width: 1024px) 40vw, 0px"
+          className="object-cover object-top"
+        />
+      </div>
+
       <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-3 max-w-xl text-center md:text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-xs font-semibold text-cyan-400">

@@ -74,6 +74,20 @@ npm run build
 
 ---
 
+## 🚀 Deployment
+
+### Vercel (zero-config)
+1. Push repo to GitHub, import project at [vercel.com/new](https://vercel.com/new).
+2. Add environment variables from `.env.example` in **Settings → Environment Variables** (server-side only, no `NEXT_PUBLIC_` prefix for secrets).
+3. Deploy. `next.config.mjs` already ships `images.unoptimized` for portability.
+
+### Netlify
+1. Push repo to GitHub, import at [app.netlify.com](https://app.netlify.com).
+2. `netlify.toml` is included: build command `npm run build`, publish `.next`, using `@netlify/plugin-nextjs`.
+3. Add the same environment variables in **Site settings → Environment variables**.
+
+---
+
 ## 📱 Mobile-First Responsive Design
 - **Android**: Navigasi bottom bar 5-item (`Home`, `Chat`, `Markets`, `Wallets`, `More`), touch target $\ge 44$px, font mudah dibaca, drawer menu untuk fitur sekunder.
 - **Desktop**: Sidebar kiri ramping, layar luas untuk grafik perbandingan, pemantauan status kesehatan provider terintegrasi.

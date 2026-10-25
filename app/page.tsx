@@ -51,7 +51,7 @@ export default function Home() {
             BABATA LENS v0.1.0 // MULTI-PROVIDER INTELLIGENCE
           </span>
           <span>
-            COINGECKO • BLOCKSCOUT • DEFILLAMA • GOPLUS • ALTERNATIVE.ME • ETHERSCAN • ALCHEMY • SOLSCAN
+            COINGECKO • BLOCKSCOUT • DEFILLAMA • GOPLUS • ALTERNATIVE.ME • MEMPOOL.SPACE • ETHERSCAN • ALCHEMY • SOLSCAN
           </span>
         </div>
       </footer>

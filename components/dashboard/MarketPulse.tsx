@@ -23,6 +23,13 @@ interface EthGas {
   averageGwei: number;
   fastGwei: number;
 }
+interface BtcNetwork {
+  tipHeight: number;
+  fees: { fastest: number; halfHour: number; hour: number; economy: number };
+  backlogCount?: number;
+  backlogVsizeMb?: number;
+  difficultyChangePct?: number;
+}
 interface TrendingCoin {
   id: string;
   symbol: string;
@@ -48,6 +55,7 @@ export const MarketPulse: React.FC<{ onSelect: (coin: CoinSummary) => void }> = 
   const [fng, setFng] = useState<FearGreed | null>(null);
   const [global, setGlobal] = useState<GlobalStats | null>(null);
   const [gas, setGas] = useState<EthGas | null>(null);
+  const [btcNet, setBtcNet] = useState<BtcNetwork | null>(null);
   const [trending, setTrending] = useState<TrendingCoin[]>([]);
   const [degraded, setDegraded] = useState(false);
 
@@ -62,17 +70,19 @@ export const MarketPulse: React.FC<{ onSelect: (coin: CoinSummary) => void }> = 
         return null;
       }
     };
-    const [f, g, ga, t] = await Promise.all([
+    const [f, g, ga, bn, t] = await Promise.all([
       grab<FearGreed>("/api/market/fear-greed"),
       grab<GlobalStats>("/api/market/global"),
       grab<EthGas>("/api/market/gas"),
+      grab<BtcNetwork>("/api/market/btc-network"),
       grab<TrendingCoin[]>("/api/market/trending"),
     ]);
     setFng(f);
     setGlobal(g);
     setGas(ga);
+    setBtcNet(bn);
     setTrending(t || []);
-    setDegraded(!f && !g && !ga && (t || []).length === 0);
+    setDegraded(!f && !g && !ga && !bn && (t || []).length === 0);
   }, []);
 
   useEffect(() => {
@@ -157,6 +167,20 @@ export const MarketPulse: React.FC<{ onSelect: (coin: CoinSummary) => void }> = 
             <span className="text-gray-300">
               {gas.slowGwei.toFixed(2)} / <span className="font-bold text-cyan-neon">{gas.averageGwei.toFixed(2)}</span> /{" "}
               {gas.fastGwei.toFixed(2)} gwei
+            </span>
+          </span>
+        )}
+
+        {btcNet && (
+          <span
+            className="hidden lg:flex items-center gap-1.5"
+            title={`Bitcoin network (mempool.space) — block #${btcNet.tipHeight}, next-block fee ${btcNet.fees.fastest} sat/vB${btcNet.backlogCount !== undefined ? `, ${btcNet.backlogCount.toLocaleString()} txs waiting` : ""}`}
+          >
+            <span className="text-amber-glow font-bold">₿</span>
+            <span className="text-gray-400">BTC NET</span>
+            <span className="text-gray-300">
+              #{btcNet.tipHeight.toLocaleString()} · <span className="font-bold text-amber-glow">{btcNet.fees.fastest}</span> sat/vB
+              {btcNet.backlogCount !== undefined && ` · ${fmtCompact(btcNet.backlogCount, false)} waiting`}
             </span>
           </span>
         )}

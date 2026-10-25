@@ -269,6 +269,166 @@ export async function getPortfolioPrices(ids: string[]): Promise<PortfolioPrice[
   );
 }
 
+// ── Coin profile (CoinGecko /coins/{id}) ─────────────────────────────
+
+const CoinProfileSchema = z.object({
+  name: z.string(),
+  symbol: z.string(),
+  categories: z.array(z.string()).default([]),
+  description: z.object({ en: z.string().default("") }).default({ en: "" }),
+  links: z
+    .object({
+      homepage: z.array(z.string().nullable()).default([]),
+      twitter_screen_name: z.string().nullable().default(null),
+      subreddit_url: z.string().nullable().default(null),
+    })
+    .default({}),
+  market_cap_rank: z.number().nullable().default(null),
+  genesis_date: z.string().nullable().default(null),
+  market_data: z
+    .object({
+      ath: z.object({ usd: z.number().nullable().default(null) }).default({ usd: null }),
+      ath_change_percentage: z
+        .object({ usd: z.number().nullable().default(null) })
+        .default({ usd: null }),
+      atl: z.object({ usd: z.number().nullable().default(null) }).default({ usd: null }),
+      circulating_supply: z.number().nullable().default(null),
+      total_supply: z.number().nullable().default(null),
+    })
+    .default({}),
+});
+
+export interface CoinProfile {
+  id: string;
+  name: string;
+  symbol: string;
+  categories: string[];
+  description: string;
+  homepage?: string;
+  twitter?: string;
+  marketCapRank?: number;
+  genesisDate?: string;
+  athUsd?: number;
+  athChangePct?: number;
+  atlUsd?: number;
+  circulatingSupply?: number;
+  totalSupply?: number;
+}
+
+/** Pure mapper — exported for regression tests. */
+export function mapCoinProfile(coinId: string, raw: unknown): CoinProfile {
+  const parsed = CoinProfileSchema.safeParse(raw);
+  if (!parsed.success) throw new Error("Coin profile feed returned unexpected data");
+  const d = parsed.data;
+  const homepage = d.links.homepage.find((h) => typeof h === "string" && h.trim()) ?? undefined;
+  return {
+    id: coinId,
+    name: d.name,
+    symbol: d.symbol.toUpperCase(),
+    categories: d.categories.filter((c) => c && c.trim() && !c.startsWith("//")),
+    description: d.description.en.trim(),
+    homepage,
+    twitter: d.links.twitter_screen_name || undefined,
+    marketCapRank: d.market_cap_rank ?? undefined,
+    genesisDate: d.genesis_date || undefined,
+    athUsd: d.market_data.ath.usd ?? undefined,
+    athChangePct: d.market_data.ath_change_percentage.usd ?? undefined,
+    atlUsd: d.market_data.atl.usd ?? undefined,
+    circulatingSupply: d.market_data.circulating_supply ?? undefined,
+    totalSupply: d.market_data.total_supply ?? undefined,
+  };
+}
+
+export async function getCoinProfile(coinId: string): Promise<CoinProfile> {
+  const id = coinId.trim().toLowerCase();
+  if (!PORTFOLIO_ID_RE.test(id)) {
+    throw new Error("Invalid coin id.");
+  }
+  return cached(`coin-profile.${id}`, 600, async () =>
+    mapCoinProfile(
+      id,
+      await fetchJson(
+        `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(id)}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`
+      )
+    )
+  );
+}
+
+// ── Bitcoin network vitals (mempool.space) ───────────────────────────
+
+const BtcFeesSchema = z.object({
+  fastestFee: z.number(),
+  halfHourFee: z.number(),
+  hourFee: z.number(),
+  economyFee: z.number(),
+});
+
+const BtcMempoolSchema = z.object({
+  count: z.number(),
+  vsize: z.number(),
+});
+
+const BtcDifficultySchema = z.object({
+  difficultyChange: z.number(),
+  estimatedRetargetDate: z.number(),
+});
+
+export interface BtcNetwork {
+  tipHeight: number;
+  fees: { fastest: number; halfHour: number; hour: number; economy: number };
+  /** Optional: a failed sub-feed stays "unknown", never silently zero. */
+  backlogCount?: number;
+  backlogVsizeMb?: number;
+  difficultyChangePct?: number;
+  retargetDate?: string;
+  updatedAt: string;
+}
+
+/** Pure combiner — exported for regression tests. */
+export function mapBtcNetwork(
+  fees: unknown,
+  mempool: unknown,
+  difficulty: unknown,
+  tipHeight: number
+): BtcNetwork {
+  const f = BtcFeesSchema.safeParse(fees);
+  if (!f.success) throw new Error("BTC fee feed returned unexpected data");
+  const m = BtcMempoolSchema.safeParse(mempool);
+  const d = BtcDifficultySchema.safeParse(difficulty);
+  return {
+    tipHeight,
+    fees: {
+      fastest: f.data.fastestFee,
+      halfHour: f.data.halfHourFee,
+      hour: f.data.hourFee,
+      economy: f.data.economyFee,
+    },
+    backlogCount: m.success ? m.data.count : undefined,
+    backlogVsizeMb: m.success ? m.data.vsize / 1_000_000 : undefined,
+    difficultyChangePct: d.success ? d.data.difficultyChange : undefined,
+    retargetDate: d.success ? new Date(d.data.estimatedRetargetDate).toISOString() : undefined,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+const MEMPOOL_BASE = "https://mempool.space/api";
+
+export async function getBtcNetwork(): Promise<BtcNetwork> {
+  return cached("btc-network", 60, async () => {
+    const [fees, mempool, difficulty, tipHeight] = await Promise.all([
+      fetchJson(`${MEMPOOL_BASE}/v1/fees/recommended`),
+      fetchJson(`${MEMPOOL_BASE}/mempool`),
+      fetchJson(`${MEMPOOL_BASE}/v1/difficulty-adjustment`),
+      fetchJson(`${MEMPOOL_BASE}/blocks/tip/height`).then((v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n <= 0) throw new Error("BTC tip height feed failed");
+        return n;
+      }),
+    ]);
+    return mapBtcNetwork(fees, mempool, difficulty, tipHeight);
+  });
+}
+
 // ── DeFi overview (DefiLlama) ────────────────────────────────────────
 
 const LlamaChainSchema = z.object({

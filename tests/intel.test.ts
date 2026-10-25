@@ -9,6 +9,8 @@ import {
   isSupportedSecurityChain,
   mapPortfolioPrices,
   sanitizePortfolioIds,
+  mapCoinProfile,
+  mapBtcNetwork,
 } from "../lib/providers/market/intel";
 
 describe("Market & DeFi intel mappers (pure)", () => {
@@ -204,5 +206,62 @@ describe("Market & DeFi intel mappers (pure)", () => {
     const long = sanitizePortfolioIds(Array.from({ length: 60 }, (_, i) => `coin-${i}`).join(","));
     expect(long).toHaveLength(40);
     expect(sanitizePortfolioIds("../etc/passwd,drop table")).toEqual([]);
+  });
+
+  it("maps a CoinGecko coin profile with defensive nulls", () => {
+    const p = mapCoinProfile("bitcoin", {
+      name: "Bitcoin",
+      symbol: "btc",
+      categories: ["Layer 1 (L1)", "", "//filtered"],
+      description: { en: "  The original cryptocurrency.  " },
+      links: { homepage: [null, "http://www.bitcoin.org", ""], twitter_screen_name: "bitcoin" },
+      market_cap_rank: 1,
+      genesis_date: "2009-01-03",
+      market_data: {
+        ath: { usd: 126080 },
+        ath_change_percentage: { usd: -36.4 },
+        atl: { usd: 67.81 },
+        circulating_supply: 20103187,
+        total_supply: null,
+      },
+    });
+    expect(p.symbol).toBe("BTC");
+    expect(p.categories).toEqual(["Layer 1 (L1)"]);
+    expect(p.description).toBe("The original cryptocurrency.");
+    expect(p.homepage).toBe("http://www.bitcoin.org");
+    expect(p.athUsd).toBe(126080);
+    expect(p.totalSupply).toBeUndefined();
+  });
+
+  it("rejects a malformed coin profile payload", () => {
+    expect(() => mapCoinProfile("x", { nope: 1 })).toThrow(/unexpected data/);
+  });
+
+  it("combines BTC network feeds; failed sub-feeds stay unknown, never zero", () => {
+    const full = mapBtcNetwork(
+      { fastestFee: 2, halfHourFee: 1, hourFee: 1, economyFee: 1 },
+      { count: 44486, vsize: 22697360 },
+      { difficultyChange: 4.8, estimatedRetargetDate: 1793309132046 },
+      973050
+    );
+    expect(full.tipHeight).toBe(973050);
+    expect(full.fees.fastest).toBe(2);
+    expect(full.backlogCount).toBe(44486);
+    expect(full.backlogVsizeMb).toBeCloseTo(22.697, 1);
+    expect(full.difficultyChangePct).toBeCloseTo(4.8, 1);
+
+    const partial = mapBtcNetwork(
+      { fastestFee: 1, halfHourFee: 1, hourFee: 1, economyFee: 1 },
+      "garbage",
+      "garbage",
+      973051
+    );
+    expect(partial.backlogCount).toBeUndefined();
+    expect(partial.difficultyChangePct).toBeUndefined();
+    expect(partial.fees.hour).toBe(1);
+  });
+
+  it("throws when the BTC fee feed is malformed (core signal, never guessed)", () => {
+    expect(() => mapBtcNetwork({}, {}, {}, 1)).toThrow(/fee feed/);
   });
 });

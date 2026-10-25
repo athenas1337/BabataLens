@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api/client";
 import { CoinSelector } from "./CoinSelector";
 import { MarketMovers } from "./MarketMovers";
 import { MarketPulse } from "./MarketPulse";
+import { CoinProfile } from "./CoinProfile";
 import { PriceAlerts } from "./PriceAlerts";
 import { TradingViewAdvancedChart } from "../charts/TradingViewAdvancedChart";
 
@@ -249,6 +250,9 @@ export const MarketTerminal: React.FC = () => {
 
           {/* Market vitals: F&G, dominance, gas, trending */}
           <MarketPulse onSelect={handleSelect} />
+
+          {/* Lazy-loaded fundamentals for the selected coin */}
+          <CoinProfile coinId={selected.id} coinSymbol={selected.symbol} />
 
           {/* TradingView Advanced Chart */}
           <div className="rounded-xl glass-hud border border-surface-border overflow-hidden">

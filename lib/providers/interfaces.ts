@@ -27,8 +27,11 @@ export const TokenMarketDataSchema = z.object({
   symbol: z.string(),
   name: z.string(),
   priceUsd: z.number(),
-  change24h: z.number(),
-  volume24h: z.number(),
+  // Optional: a provider that genuinely lacks these (e.g. CMC returns null for
+  // untracked quotes) must leave them undefined, never coerce to 0 — a $0
+  // volume reads as fact to users.
+  change24h: z.number().optional(),
+  volume24h: z.number().optional(),
   marketCap: z.number().optional(),
   high24h: z.number().optional(),
   low24h: z.number().optional(),

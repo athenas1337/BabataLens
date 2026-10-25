@@ -110,15 +110,16 @@ export class CoinMarketCapProvider implements MarketDataProvider {
     const now = new Date().toISOString();
 
     // CMC's latest-quotes endpoint has no ATH/ATL/high/low, so those stay
-    // undefined rather than being invented.
+    // undefined rather than being invented. Null metrics are likewise kept as
+    // undefined — coercing them to 0 would present "unknown" as fact.
     const normalized: TokenMarketData = {
       id: String(item.id),
       symbol: item.symbol,
       name: item.name,
       priceUsd: usd.price,
-      change24h: usd.percent_change_24h ?? 0,
-      volume24h: usd.volume_24h ?? 0,
-      marketCap: usd.market_cap ?? 0,
+      change24h: usd.percent_change_24h ?? undefined,
+      volume24h: usd.volume_24h ?? undefined,
+      marketCap: usd.market_cap ?? undefined,
       lastUpdated: usd.last_updated || now,
     };
 

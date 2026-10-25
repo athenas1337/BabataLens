@@ -39,7 +39,13 @@ export class BinanceProvider implements ExchangeDataProvider {
 
   private normalizeSymbol(raw: string): string {
     const clean = raw.trim().toUpperCase().replace(/[-_/]/g, "");
-    if (clean.endsWith("USDT") || clean.endsWith("BUSD") || clean.endsWith("USDC") || clean.endsWith("BTC")) {
+    // A symbol that IS a quote ticker (e.g. "BTC") is a bare base asset, not an
+    // already-qualified pair: passing it through unchanged 400s on /ticker/24hr.
+    const bareQuoteTicker =
+      clean === "USDT" || clean === "BUSD" || clean === "USDC" || clean === "BTC";
+    const hasQuoteSuffix =
+      clean.endsWith("USDT") || clean.endsWith("BUSD") || clean.endsWith("USDC") || clean.endsWith("BTC");
+    if (hasQuoteSuffix && !bareQuoteTicker) {
       return clean;
     }
     return `${clean}USDT`;

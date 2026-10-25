@@ -7,6 +7,7 @@ import { initializeProviderRegistry } from "../lib/providers";
 import { executeTool } from "../lib/tools/executor";
 import { BabataAgentOrchestrator } from "../lib/agent/orchestrator";
 import { LocalBabataEngine } from "../lib/providers/ai/local-rule-engine";
+import { BinanceProvider } from "../lib/providers/exchange/binance";
 import { BABATA_TOOLS, toolParametersToJsonSchema, normalizeToolInput } from "../lib/tools/definitions";
 import {
   resolveTradingViewSymbol,
@@ -274,6 +275,28 @@ describe("Babata Lens Empirical Test Suite", () => {
         symbol: "BTC-USDT",
       });
       expect(t9.success).toBe(true);
+    });
+  });
+
+  describe("Binance Ticker Symbol Normalization", () => {
+    const normalize = (raw: string) =>
+      (new BinanceProvider() as unknown as {
+        normalizeSymbol: (input: string) => string;
+      }).normalizeSymbol(raw);
+
+    it("appends USDT to a bare base asset that is itself a quote ticker", () => {
+      // "BTC" ends with "BTC" but is a bare asset, not the pair BTC/BTC:
+      // passing it through unchanged makes /ticker/24hr return 400.
+      expect(normalize("BTC")).toBe("BTCUSDT");
+      expect(normalize("USDC")).toBe("USDCUSDT");
+    });
+
+    it("keeps already-qualified pairs and plain bases unchanged in behavior", () => {
+      expect(normalize("BTCUSDT")).toBe("BTCUSDT");
+      expect(normalize("ETHBTC")).toBe("ETHBTC");
+      expect(normalize("btc-usdt")).toBe("BTCUSDT");
+      expect(normalize("SOL/USDT")).toBe("SOLUSDT");
+      expect(normalize("ETH")).toBe("ETHUSDT");
     });
   });
 

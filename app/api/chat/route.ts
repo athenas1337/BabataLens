@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BabataAgentOrchestrator, BabataAvatarState } from "@/lib/agent/orchestrator";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { authenticateRequest, unauthorizedResponse } from "@/lib/security/auth";
+import { getDatabase } from "@/lib/db";
 import { logger } from "@/lib/observability/logger";
 
 const ChatRequestSchema = z.object({
@@ -43,11 +44,25 @@ export async function POST(req: NextRequest) {
   }
 
   const { message, conversationId, stream } = parsed.data;
+
+  // Conversations must belong to the authenticated user. Without this check a
+  // client could continue someone else's conversation by id; without userId
+  // being passed, chats were saved under "anonymous" and could never be listed
+  // back through /api/conversations.
+  if (conversationId) {
+    const db = getDatabase();
+    const existing = await db.getConversation(conversationId);
+    if (!existing || existing.userId !== auth.user.id) {
+      return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+  }
+
   const orchestrator = new BabataAgentOrchestrator();
+  const userId = auth.user.id;
 
   if (!stream) {
     try {
-      const result = await orchestrator.processMessage(message, { conversationId });
+      const result = await orchestrator.processMessage(message, { conversationId, userId });
       return NextResponse.json(result);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Internal processing error";
@@ -72,6 +87,7 @@ export async function POST(req: NextRequest) {
       try {
         await orchestrator.processMessage(message, {
           conversationId,
+          userId,
           callbacks: {
             onAvatarState: (state: BabataAvatarState) => {
               sendEvent("avatar_state", { state });

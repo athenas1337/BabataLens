@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, TrendingUp, TrendingDown, BarChart3, Zap } from "lucide-react";
 import { CoinSummary, TokenMarketData } from "@/lib/providers/interfaces";
 import { resolveTradingViewSymbol, ChartInterval, INTERVAL_OPTIONS } from "@/lib/tradingview/symbols";
@@ -51,6 +51,9 @@ export const MarketTerminal: React.FC = () => {
   const [marketLoading, setMarketLoading] = useState(false);
   const [marketError, setMarketError] = useState<string | null>(null);
   const [showSelector, setShowSelector] = useState(false);
+  // Guards against a stale /api/market response (slow request for a previously
+  // selected coin) overwriting the data of the currently selected coin.
+  const fetchSeq = useRef(0);
 
   const tvSymbol = useMemo(
     () => resolveTradingViewSymbol(selected.tradingViewSymbol || selected.symbol).symbol,
@@ -58,6 +61,7 @@ export const MarketTerminal: React.FC = () => {
   );
 
   const fetchMarket = useCallback(async (symbol: string) => {
+    const seq = ++fetchSeq.current;
     setMarketLoading(true);
     setMarketError(null);
     try {
@@ -67,12 +71,14 @@ export const MarketTerminal: React.FC = () => {
         throw new Error(body?.error || `HTTP ${res.status}`);
       }
       const data = (await res.json()) as MarketApiResponse;
+      if (seq !== fetchSeq.current) return; // superseded by a newer request
       setMarket(data.token);
     } catch (err) {
+      if (seq !== fetchSeq.current) return;
       setMarketError(err instanceof Error ? err.message : "Failed to load market data");
       setMarket(null);
     } finally {
-      setMarketLoading(false);
+      if (seq === fetchSeq.current) setMarketLoading(false);
     }
   }, []);
 

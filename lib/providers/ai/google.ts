@@ -27,7 +27,11 @@ export class GoogleAIProvider implements AIProvider {
   requiredEnvVars = ["GOOGLE_AI_API_KEY"];
 
   private apiKey?: string;
-  private defaultModel = "gemini-1.5-pro";
+  // Versioned Gemini names rot (1.5 retired, 2.5 closed to new keys, the
+  // pinned 3.8 name itself hung for some keys). The -latest alias is the
+  // stable choice: Google keeps it pointed at the current flash model.
+  // Override per deployment with GOOGLE_AI_MODEL if a specific model is wanted.
+  private defaultModel = getSecret("GOOGLE_AI_MODEL") || "gemini-flash-latest";
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey || getSecret("GOOGLE_AI_API_KEY");

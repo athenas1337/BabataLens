@@ -9,6 +9,7 @@ interface FearGreed {
   value: number;
   classification: string;
   previousValue?: number;
+  history?: number[];
 }
 interface GlobalStats {
   totalMarketCapUsd: number;
@@ -110,6 +111,19 @@ export const MarketPulse: React.FC<{ onSelect: (coin: CoinSummary) => void }> = 
               <span className={fngPositive ? "text-emerald-cyber" : "text-rose-flare"}>
                 {fngPositive ? "▲" : "▼"}
                 {Math.abs(fngDelta)}
+              </span>
+            )}
+            {fng.history && fng.history.length > 1 && (
+              <span className="flex items-end gap-[3px] h-3.5" title="Last 8 days">
+                {fng.history.map((v, i) => (
+                  <span
+                    key={i}
+                    className={`w-1 rounded-sm ${
+                      v >= 55 ? "bg-emerald-cyber/70" : v <= 45 ? "bg-rose-flare/70" : "bg-amber-glow/70"
+                    }`}
+                    style={{ height: `${Math.max(20, (v / 100) * 100)}%` }}
+                  />
+                ))}
               </span>
             )}
           </span>

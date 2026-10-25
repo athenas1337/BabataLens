@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { TrendingUp, TrendingDown, Loader2, Activity } from "lucide-react";
 import { CoinSummary } from "@/lib/providers/interfaces";
 import { apiFetch } from "@/lib/api/client";
@@ -31,8 +31,12 @@ export const MarketMovers: React.FC<MarketMoversProps> = ({ onSelect, limit = 6 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"gainers" | "losers">("gainers");
+  // Guards against a slow refresh responding after a newer one and overwriting
+  // fresher rows with stale data.
+  const loadSeq = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError(null);
     try {
@@ -41,11 +45,14 @@ export const MarketMovers: React.FC<MarketMoversProps> = ({ onSelect, limit = 6 
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.error || `HTTP ${res.status}`);
       }
-      setData((await res.json()) as MoversResponse);
+      const next = (await res.json()) as MoversResponse;
+      if (seq !== loadSeq.current) return; // superseded
+      setData(next);
     } catch (err) {
+      if (seq !== loadSeq.current) return;
       setError(err instanceof Error ? err.message : "Failed to load movers");
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [limit]);
 

@@ -229,13 +229,33 @@ export class EtherscanProvider implements BlockchainDataProvider {
     }
 
     const tx = json.result;
+
+    // eth_getTransactionByHash carries no timestamp — resolve it from the
+    // block header instead of fabricating "now" as the tx time.
+    let timestamp = "";
+    try {
+      const blockRes = await fetch(
+        `${this.baseUrl}?chainid=${getChainId(network)}&module=proxy&action=eth_getBlockByNumber&tag=${tx.blockNumber}&boolean=false&apikey=${apiKey}`
+      );
+      if (blockRes.ok) {
+        const block = (await blockRes.json()) as { result?: { timestamp?: string } };
+        if (block.result?.timestamp) {
+          timestamp = new Date(
+            Number(BigInt(block.result.timestamp)) * 1000
+          ).toISOString();
+        }
+      }
+    } catch {
+      // timestamp stays "" (unknown) — the honest state.
+    }
+
     const detail: TransactionDetail = {
       hash: tx.hash,
       from: tx.from,
       to: tx.to,
       value: `${(Number(BigInt(tx.value || "0")) / 1e18).toFixed(6)} ETH`,
       blockNumber: Number(BigInt(tx.blockNumber || "0")),
-      timestamp: new Date().toISOString(),
+      timestamp,
       status: "success",
       network,
       gasPrice: tx.gasPrice,

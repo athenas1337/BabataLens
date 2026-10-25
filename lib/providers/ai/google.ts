@@ -40,9 +40,9 @@ export class GoogleAIProvider implements AIProvider {
   async healthCheck(): Promise<boolean> {
     if (!this.apiKey) return false;
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`
-      );
+      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+        headers: { "x-goog-api-key": this.apiKey },
+      });
       return res.status === 200;
     } catch {
       return false;
@@ -127,10 +127,12 @@ export class GoogleAIProvider implements AIProvider {
       ];
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.defaultModel}:generateContent?key=${this.apiKey}`;
+    // Key goes in the header, never the query string: URLs end up in access
+    // logs, proxies and error reports far more often than headers do.
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.defaultModel}:generateContent`;
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": this.apiKey },
       body: JSON.stringify(body),
     });
 

@@ -39,15 +39,24 @@ function isValidSession(cookie: string, secret: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+/** Constant-time bearer comparison (same treatment as the session cookie). */
+function isValidBearer(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 export async function authenticateRequest(req: NextRequest): Promise<AuthContext | null> {
   const env = getEnv();
   const db = getDatabase();
 
-  // 1. Bearer token auth (admin access token)
+  // 1. Bearer token auth (admin access token). Constant-time comparison so
+  //    request timing can't be used to recover the token byte by byte.
   const authHeader = req.headers.get("authorization");
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.slice(7).trim();
-    if (env.ADMIN_ACCESS_TOKEN && token === env.ADMIN_ACCESS_TOKEN) {
+    if (env.ADMIN_ACCESS_TOKEN && isValidBearer(token, env.ADMIN_ACCESS_TOKEN)) {
       const user = await db.getOrCreateDefaultOperator();
       return { user, isAuthenticated: true };
     }
@@ -66,11 +75,10 @@ export async function authenticateRequest(req: NextRequest): Promise<AuthContext
   //
   // NOTE: there is deliberately NO implicit same-origin bypass here. Origin
   // headers are attacker-controlled on non-browser clients (curl -H), so
-  // trusting them was equivalent to no auth at all. Browser sessions obtain the
-  // cookie from POST/GET /api/auth/session instead. A deployment with no
-  // ADMIN_ACCESS_TOKEN still issues a session because AUTH_SECRET has a
-  // built-in default; set AUTH_SECRET in production so the cookie cannot be
-  // forged by someone who knows the default value.
+  // trusting them was equivalent to no auth at all. Browser sessions obtain
+  // the cookie from /api/auth/session. There is NO default AUTH_SECRET: a
+  // deployment without one returns 503 from the session route and accepts no
+  // cookie auth, by design.
   if (env.NODE_ENV === "development" && env.DEV_ALLOW_ANONYMOUS === "true") {
     const user = await db.getOrCreateDefaultOperator();
     return { user, isAuthenticated: true };

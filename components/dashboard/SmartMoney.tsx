@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw, TrendingUp, TrendingDown, KeyRound, Info, ArrowDownLeft, ArrowUpRight, X, Plus } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 
@@ -149,7 +149,9 @@ export const SmartMoney: React.FC = () => {
     }
   };
 
+  const flowsSeq = useRef(0);
   const loadFlows = useCallback(async () => {
+    const seq = ++flowsSeq.current;
     setFlowsLoading(true);
     setFlowsError(null);
     try {
@@ -159,14 +161,16 @@ export const SmartMoney: React.FC = () => {
       const res = await apiFetch(`/api/smart-money/flows?${params.toString()}`);
       const data = (await res.json()) as FlowsResponse;
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (seq !== flowsSeq.current) return; // superseded by a newer chain/watchlist
       setFlows(data.flows || []);
       setFlowsFailed(data.failed || []);
       setFlowsFetchedAt(data.source?.fetchedAt ?? null);
     } catch (err: unknown) {
+      if (seq !== flowsSeq.current) return;
       setFlowsError(err instanceof Error ? err.message : "Failed to load live flows");
       setFlows([]);
     } finally {
-      setFlowsLoading(false);
+      if (seq === flowsSeq.current) setFlowsLoading(false);
     }
   }, [chain, custom]);
 

@@ -188,7 +188,9 @@ export class AlchemyProvider implements BlockchainDataProvider {
       return {
         hash: t.hash,
         blockNumber: t.blockNum ? Number(BigInt(t.blockNum)) : undefined,
-        timestamp: t.metadata?.blockTimestamp || new Date().toISOString(),
+        // No upstream timestamp means "unknown", never "now" — a fabricated
+        // time would be presented to users as block time.
+        timestamp: t.metadata?.blockTimestamp || "",
         from: t.from,
         to: t.to ?? "",
         value: `${t.value ?? 0} ${t.asset ?? ""}`.trim(),

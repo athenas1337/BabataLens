@@ -22,6 +22,17 @@ export const WalletInspector: React.FC = () => {
   const [source, setSource] = useState<{ provider: string; network?: string } | null>(null);
   const [addressRisk, setAddressRisk] = useState<AddressRisk | null>(null);
   const [riskUnavailable, setRiskUnavailable] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(address.trim());
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Clipboard can be blocked (permissions/iframe); silently ignore.
+    }
+  };
 
   const sampleAddresses = [
     { label: "Vitalik (EVM)", address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", net: "ethereum" },
@@ -110,6 +121,15 @@ export const WalletInspector: React.FC = () => {
             placeholder="Enter EVM (0x...) or Solana base58 address"
             className="flex-1 px-4 py-2.5 rounded-xl bg-surface-1 border border-surface-border focus:border-cyan-neon outline-none text-xs font-mono text-gray-100 placeholder-gray-500"
           />
+
+          <button
+            type="button"
+            onClick={() => void copyAddress()}
+            title="Copy address to clipboard"
+            className="px-3 py-2.5 rounded-xl bg-surface-1 border border-surface-border text-[11px] font-mono text-gray-300 hover:text-cyan-neon hover:border-cyan-neon/40 transition-all"
+          >
+            {copied ? "COPIED" : "COPY"}
+          </button>
 
           <button
             type="submit"
@@ -254,7 +274,7 @@ export const WalletInspector: React.FC = () => {
                     <div className="sm:text-right">
                       <div className="text-gray-200 font-semibold">{tx.value}</div>
                       <div className="text-[10px] text-gray-500">
-                        {new Date(tx.timestamp).toLocaleString()}
+                        {tx.timestamp ? new Date(tx.timestamp).toLocaleString() : "time unknown"}
                       </div>
                     </div>
                   </div>

@@ -7,6 +7,8 @@ import {
   assessTokenSecurity,
   assessAddressSecurity,
   isSupportedSecurityChain,
+  mapPortfolioPrices,
+  sanitizePortfolioIds,
 } from "../lib/providers/market/intel";
 
 describe("Market & DeFi intel mappers (pure)", () => {
@@ -167,5 +169,40 @@ describe("Market & DeFi intel mappers (pure)", () => {
     expect(isSupportedSecurityChain(1)).toBe(true);
     expect(isSupportedSecurityChain(8453)).toBe(true);
     expect(isSupportedSecurityChain(999)).toBe(false);
+  });
+
+  it("maps CoinGecko market rows into portfolio prices, tolerating nulls", () => {
+    const rows = mapPortfolioPrices([
+      {
+        id: "bitcoin",
+        symbol: "btc",
+        name: "Bitcoin",
+        current_price: 80440.87,
+        price_change_percentage_24h: -1.2,
+        market_cap: 1590000000000,
+        image: "https://x/btc.png",
+      },
+      { id: "ghost", symbol: "gst", name: "Ghost", current_price: null, market_cap: null },
+    ]);
+    expect(rows[0].priceUsd).toBe(80440.87);
+    expect(rows[0].symbol).toBe("BTC");
+    expect(rows[1].priceUsd).toBeUndefined();
+    expect(rows[1].change24hPct).toBeUndefined();
+  });
+
+  it("accepts an empty market-rows array (all ids unknown upstream)", () => {
+    expect(mapPortfolioPrices([])).toEqual([]);
+    expect(() => mapPortfolioPrices({ nope: true })).toThrow(/unexpected data/);
+  });
+
+  it("sanitizes portfolio id lists: dedupe, charset, cap at 40", () => {
+    expect(sanitizePortfolioIds("Bitcoin, ethereum, BITCOIN, bad_thing, a".repeat(30))).toEqual(
+      expect.arrayContaining(["bitcoin", "ethereum", "a"])
+    );
+    const single = sanitizePortfolioIds("bitcoin");
+    expect(single).toEqual(["bitcoin"]);
+    const long = sanitizePortfolioIds(Array.from({ length: 60 }, (_, i) => `coin-${i}`).join(","));
+    expect(long).toHaveLength(40);
+    expect(sanitizePortfolioIds("../etc/passwd,drop table")).toEqual([]);
   });
 });

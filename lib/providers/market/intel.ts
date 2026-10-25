@@ -53,19 +53,23 @@ export interface FearGreed {
   value: number;
   classification: string;
   previousValue?: number;
+  /** Last 8 daily readings, oldest first — rendered as mini history bars. */
+  history: number[];
   updatedAt: string;
 }
 
 export async function getFearGreed(): Promise<FearGreed> {
   return cached("fear-greed", 900, async () => {
-    const parsed = FngSchema.safeParse(await fetchJson("https://api.alternative.me/fng/?limit=2"));
+    const parsed = FngSchema.safeParse(await fetchJson("https://api.alternative.me/fng/?limit=8"));
     if (!parsed.success) throw new Error("Fear & Greed feed returned unexpected data");
-    const latest = parsed.data.data[0];
+    const entries = parsed.data.data;
+    const values = entries.map((e) => Number(e.value)).filter((v) => Number.isFinite(v));
     return {
-      value: Number(latest.value),
-      classification: latest.value_classification,
-      previousValue: parsed.data.data[1] ? Number(parsed.data.data[1].value) : undefined,
-      updatedAt: new Date(Number(latest.timestamp) * 1000).toISOString(),
+      value: values[0],
+      classification: entries[0].value_classification,
+      previousValue: values[1],
+      history: values.slice(0, 8).reverse(),
+      updatedAt: new Date(Number(entries[0].timestamp) * 1000).toISOString(),
     };
   });
 }
@@ -196,6 +200,73 @@ export async function getEthGas(): Promise<EthGas> {
       updatedAt: parsed.data.gas_price_updated_at ?? new Date().toISOString(),
     };
   });
+}
+
+// ── Portfolio prices (CoinGecko /coins/markets) ──────────────────────
+
+const MarketRowSchema = z.object({
+  id: z.string(),
+  symbol: z.string(),
+  name: z.string(),
+  current_price: z.number().nullable().optional(),
+  price_change_percentage_24h: z.number().nullable().optional(),
+  market_cap: z.number().nullable().optional(),
+  image: z.string().nullable().optional(),
+});
+
+export interface PortfolioPrice {
+  id: string;
+  symbol: string;
+  name: string;
+  priceUsd?: number;
+  change24hPct?: number;
+  marketCapUsd?: number;
+  image?: string;
+}
+
+/** Pure mapper — exported for regression tests. */
+export function mapPortfolioPrices(raw: unknown): PortfolioPrice[] {
+  // An empty array is a valid answer (all ids unknown upstream), never an error.
+  const parsed = z.array(MarketRowSchema).safeParse(raw);
+  if (!parsed.success) throw new Error("Portfolio price feed returned unexpected data");
+  return parsed.data.map((r) => ({
+    id: r.id,
+    symbol: r.symbol.toUpperCase(),
+    name: r.name,
+    priceUsd: r.current_price ?? undefined,
+    change24hPct: r.price_change_percentage_24h ?? undefined,
+    marketCapUsd: r.market_cap ?? undefined,
+    image: r.image ?? undefined,
+  }));
+}
+
+const PORTFOLIO_ID_RE = /^[a-z0-9-]{1,40}$/;
+
+export function sanitizePortfolioIds(raw: string): string[] {
+  return Array.from(
+    new Set(
+      raw
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => PORTFOLIO_ID_RE.test(s))
+    )
+  ).slice(0, 40);
+}
+
+/** Prices for arbitrary CoinGecko ids — powers the localStorage portfolio. */
+export async function getPortfolioPrices(ids: string[]): Promise<PortfolioPrice[]> {
+  if (ids.length === 0) return [];
+  const unique = Array.from(new Set(ids.map((i) => i.trim().toLowerCase()))).slice(0, 40);
+  // The cache key MUST include the id set — a fixed key would serve one
+  // caller's coins to every other caller (caught in smoke testing).
+  const key = `portfolio-prices.${unique.slice().sort().join(",")}`;
+  return cached(key, 60, async () =>
+    mapPortfolioPrices(
+      await fetchJson(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${unique.join(",")}&per_page=250&price_change_percentage=24h`
+      )
+    )
+  );
 }
 
 // ── DeFi overview (DefiLlama) ────────────────────────────────────────
@@ -491,7 +562,11 @@ export async function getTokenSecurity(
   if (!isSupportedSecurityChain(chainId)) {
     throw new Error(`Security scan not supported for chain id ${chainId}.`);
   }
-  return cached("token-security", 600, async () => {
+  // Cache key includes the exact chain+contract: a shared key would hand one
+  // token's scan results to every other token (same bug class caught on the
+  // portfolio route in smoke testing).
+  const key = `token-security.${chainId}.${address.toLowerCase()}`;
+  return cached(key, 600, async () => {
     const raw = await fetchJson(
       `https://api.gopluslabs.com/api/v1/token_security/${chainId}?contract_addresses=${address}`,
       15000
@@ -558,7 +633,8 @@ export function assessAddressSecurity(address: string, rawRow: unknown): Address
 }
 
 export async function getAddressSecurity(address: string): Promise<AddressSecurityReport> {
-  return cached("address-security", 600, async () => {
+  const key = `address-security.${address.toLowerCase()}`;
+  return cached(key, 600, async () => {
     const raw = await fetchJson(
       `https://api.gopluslabs.com/api/v1/address_security/${address}?chain_id=1`,
       15000

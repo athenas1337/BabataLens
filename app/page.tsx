@@ -6,6 +6,7 @@ import { ChatPanel } from "@/components/chat/ChatPanel";
 import { TickerTape } from "@/components/charts/TickerTape";
 import { MarketTerminal } from "@/components/dashboard/MarketTerminal";
 import { DefiPulse } from "@/components/dashboard/DefiPulse";
+import { Portfolio } from "@/components/dashboard/Portfolio";
 import { SmartMoney } from "@/components/dashboard/SmartMoney";
 import { TokenSafety } from "@/components/dashboard/TokenSafety";
 import { WalletInspector } from "@/components/dashboard/WalletInspector";
@@ -25,19 +26,22 @@ export default function Home() {
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
       <TickerTape />
 
-      {/* Main Content Area */}
+      {/* Main Content Area — keyed wrapper restarts the fade-in on tab switch */}
       <main className="flex-1 w-full flex flex-col justify-start items-center relative z-10">
-        {activeTab === "chat" && <ChatPanel />}
-        {activeTab === "market" && <MarketTerminal />}
-        {activeTab === "defi" && <DefiPulse />}
-        {activeTab === "smartmoney" && (
-          <>
-            <SmartMoney />
-            <TokenSafety />
-          </>
-        )}
-        {activeTab === "wallet" && <WalletInspector />}
-        {activeTab === "providers" && <ProviderStatusMatrix />}
+        <div key={activeTab} className="w-full tab-fade">
+          {activeTab === "chat" && <ChatPanel />}
+          {activeTab === "market" && <MarketTerminal />}
+          {activeTab === "defi" && <DefiPulse />}
+          {activeTab === "portfolio" && <Portfolio />}
+          {activeTab === "smartmoney" && (
+            <>
+              <SmartMoney />
+              <TokenSafety />
+            </>
+          )}
+          {activeTab === "wallet" && <WalletInspector />}
+          {activeTab === "providers" && <ProviderStatusMatrix />}
+        </div>
       </main>
 
       {/* Footer */}
@@ -47,7 +51,7 @@ export default function Home() {
             BABATA LENS v0.1.0 // MULTI-PROVIDER INTELLIGENCE
           </span>
           <span>
-            COINGECKO • CMC • ETHERSCAN • ALCHEMY • SOLSCAN • DUNE • BINGX
+            COINGECKO • BLOCKSCOUT • DEFILLAMA • GOPLUS • ALTERNATIVE.ME • ETHERSCAN • ALCHEMY • SOLSCAN
           </span>
         </div>
       </footer>

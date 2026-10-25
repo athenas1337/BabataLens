@@ -3,7 +3,7 @@
 import React from "react";
 import { AuthTokenSettings } from "./AuthTokenSettings";
 
-export type NavTab = "chat" | "market" | "defi" | "smartmoney" | "wallet" | "providers";
+export type NavTab = "chat" | "market" | "defi" | "portfolio" | "smartmoney" | "wallet" | "providers";
 
 interface NavbarProps {
   activeTab: NavTab;
@@ -15,6 +15,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange }) => {
     { id: "chat", label: "Babata Analyst", icon: "🧠" },
     { id: "market", label: "Market Terminal", icon: "📈" },
     { id: "defi", label: "DeFi Pulse", icon: "🌐" },
+    { id: "portfolio", label: "Portfolio", icon: "💼" },
     { id: "smartmoney", label: "Smart Money", icon: "🐋" },
     { id: "wallet", label: "Wallet Inspector", icon: "🔍" },
     { id: "providers", label: "System Status", icon: "⚡" },
@@ -42,8 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange }) => {
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <nav className="flex items-center space-x-1 sm:space-x-2 bg-surface-1 p-1 rounded-xl border border-surface-border">
+        {/* Tab Switcher — horizontally scrollable on small screens (7 tabs) */}
+        <nav className="flex items-center space-x-1 sm:space-x-2 bg-surface-1 p-1 rounded-xl border border-surface-border overflow-x-auto max-w-[60vw] lg:max-w-none scrollbar-none">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -51,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange }) => {
                 key={tab.id}
                 type="button"
                 onClick={() => onTabChange(tab.id)}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all shrink-0 ${
                   isActive
                     ? "bg-cyan-neon/20 text-cyan-neon font-bold border border-cyan-neon/40 shadow-sm"
                     : "text-gray-400 hover:text-gray-200 hover:bg-surface-2/60"

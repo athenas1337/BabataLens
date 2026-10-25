@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeProviderRegistry } from "@/lib/providers";
 import { authenticateRequest, unauthorizedResponse } from "@/lib/security/auth";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getDatabaseMode } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,16 @@ export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
   if (!auth) {
     return unauthorizedResponse();
+  }
+
+  // This route performs live upstream probes, so it needs a limit like every
+  // other route — hammering it would amplify into provider quota burn.
+  const ip = req.headers.get("x-forwarded-for") || "127.0.0.1";
+  if (!checkRateLimit("ip", ip, { windowMs: 60 * 1000, max: 20 }).allowed) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded. Please wait a moment." },
+      { status: 429, headers: { "Retry-After": "60" } }
+    );
   }
 
   const registry = initializeProviderRegistry();

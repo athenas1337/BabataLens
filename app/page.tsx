@@ -3,8 +3,11 @@
 import React, { useState } from "react";
 import { Navbar, NavTab } from "@/components/layout/Navbar";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { TickerTape } from "@/components/charts/TickerTape";
 import { MarketTerminal } from "@/components/dashboard/MarketTerminal";
+import { DefiPulse } from "@/components/dashboard/DefiPulse";
 import { SmartMoney } from "@/components/dashboard/SmartMoney";
+import { TokenSafety } from "@/components/dashboard/TokenSafety";
 import { WalletInspector } from "@/components/dashboard/WalletInspector";
 import { ProviderStatusMatrix } from "@/components/dashboard/ProviderStatusMatrix";
 
@@ -20,12 +23,19 @@ export default function Home() {
 
       {/* Navigation */}
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
+      <TickerTape />
 
       {/* Main Content Area */}
       <main className="flex-1 w-full flex flex-col justify-start items-center relative z-10">
         {activeTab === "chat" && <ChatPanel />}
         {activeTab === "market" && <MarketTerminal />}
-        {activeTab === "smartmoney" && <SmartMoney />}
+        {activeTab === "defi" && <DefiPulse />}
+        {activeTab === "smartmoney" && (
+          <>
+            <SmartMoney />
+            <TokenSafety />
+          </>
+        )}
         {activeTab === "wallet" && <WalletInspector />}
         {activeTab === "providers" && <ProviderStatusMatrix />}
       </main>

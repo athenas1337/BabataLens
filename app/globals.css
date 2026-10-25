@@ -73,6 +73,23 @@ body {
   animation: glitch-jitter 0.3s ease infinite;
 }
 
+/* Ticker tape marquee (TickerTape.tsx) — track holds two copies of the list
+   so translateX(-50%) loops seamlessly. Paused on hover via group-hover. */
+@keyframes ticker-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.ticker-track {
+  animation: ticker-marquee 45s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+}
+
 /* Accessibility: Respect prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *,

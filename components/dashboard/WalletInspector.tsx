@@ -1,8 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
+import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { WalletBalance, Transaction } from "@/lib/providers/interfaces";
 import { apiFetch } from "@/lib/api/client";
+
+interface AddressRisk {
+  riskLevel: "high" | "medium" | "low" | "info";
+  summary: string;
+  flags: { label: string; level: string }[];
+}
 
 export const WalletInspector: React.FC = () => {
   const [address, setAddress] = useState("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
@@ -13,6 +20,8 @@ export const WalletInspector: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [txNotice, setTxNotice] = useState<string | null>(null);
   const [source, setSource] = useState<{ provider: string; network?: string } | null>(null);
+  const [addressRisk, setAddressRisk] = useState<AddressRisk | null>(null);
+  const [riskUnavailable, setRiskUnavailable] = useState(false);
 
   const sampleAddresses = [
     { label: "Vitalik (EVM)", address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", net: "ethereum" },
@@ -27,6 +36,8 @@ export const WalletInspector: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setTxNotice(null);
+    setAddressRisk(null);
+    setRiskUnavailable(false);
     try {
       const res = await apiFetch(`/api/wallet?address=${encodeURIComponent(addr)}&network=${net}`);
       if (!res.ok) {
@@ -38,6 +49,20 @@ export const WalletInspector: React.FC = () => {
       setTransactions(data.transactions || []);
       setSource(data.source ?? null);
       if (data.transactionsError) setTxNotice(data.transactionsError);
+
+      // Risk-list scan (GoPlus, free) — EVM addresses only, best-effort.
+      if (net !== "solana" && /^0x[0-9a-fA-F]{40}$/.test(addr.trim())) {
+        try {
+          const riskRes = await apiFetch(
+            `/api/security/address?address=${encodeURIComponent(addr.trim())}`
+          );
+          const riskJson = (await riskRes.json()) as { data?: AddressRisk; error?: string };
+          if (riskRes.ok && riskJson.data) setAddressRisk(riskJson.data);
+          else setRiskUnavailable(true);
+        } catch {
+          setRiskUnavailable(true);
+        }
+      }
     } catch (err: unknown) {
       // Drop stale results so an error never sits next to a previous wallet's data.
       setBalance(null);
@@ -146,6 +171,38 @@ export const WalletInspector: React.FC = () => {
                 </span>
               )}
             </div>
+
+            {/* Risk-list scan (free GoPlus feed) — never blocks the wallet data */}
+            {addressRisk && (
+              <div className="mt-4 pt-3 border-t border-surface-border/40">
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border ${
+                    addressRisk.riskLevel === "high"
+                      ? "text-rose-flare bg-rose-flare/10 border-rose-flare/40"
+                      : addressRisk.riskLevel === "medium"
+                        ? "text-amber-glow bg-amber-glow/10 border-amber-glow/40"
+                        : "text-emerald-cyber bg-emerald-cyber/10 border-emerald-cyber/40"
+                  }`}
+                >
+                  {addressRisk.riskLevel === "high" ? (
+                    <ShieldAlert className="w-3 h-3" />
+                  ) : (
+                    <ShieldCheck className="w-3 h-3" />
+                  )}
+                  RISK SCAN: {addressRisk.riskLevel.toUpperCase()}
+                </span>
+                {addressRisk.flags.length > 0 && (
+                  <p className="text-[10px] font-mono text-gray-400 mt-1.5 leading-relaxed">
+                    {addressRisk.flags.map((f) => f.label).join(" · ")}
+                  </p>
+                )}
+              </div>
+            )}
+            {riskUnavailable && (
+              <p className="mt-4 pt-3 border-t border-surface-border/40 text-[10px] font-mono text-gray-500">
+                Risk-list scan unavailable right now (free feed offline or rate-limited).
+              </p>
+            )}
 
             {/* Token list if present */}
             {balance.tokens && balance.tokens.length > 0 && (

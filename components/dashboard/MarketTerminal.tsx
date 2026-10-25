@@ -8,6 +8,8 @@ import { useCoinUniverse } from "@/lib/hooks/useCoinUniverse";
 import { apiFetch } from "@/lib/api/client";
 import { CoinSelector } from "./CoinSelector";
 import { MarketMovers } from "./MarketMovers";
+import { MarketPulse } from "./MarketPulse";
+import { PriceAlerts } from "./PriceAlerts";
 import { TradingViewAdvancedChart } from "../charts/TradingViewAdvancedChart";
 
 interface MarketApiResponse {
@@ -241,7 +243,12 @@ export const MarketTerminal: React.FC = () => {
                 Live metrics unavailable ({marketError}) — chart still active.
               </div>
             )}
+
+            <PriceAlerts symbol={selected.symbol} price={price} />
           </div>
+
+          {/* Market vitals: F&G, dominance, gas, trending */}
+          <MarketPulse onSelect={handleSelect} />
 
           {/* TradingView Advanced Chart */}
           <div className="rounded-xl glass-hud border border-surface-border overflow-hidden">

@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Search, Star, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { CoinSummary } from "@/lib/providers/interfaces";
+import { readFavorites, FavoriteCoin, FAVORITES_KEY } from "./WatchGrid";
 
 export interface CoinSelectorProps {
   coins: CoinSummary[];
@@ -18,7 +19,6 @@ export interface CoinSelectorProps {
 }
 
 const MAX_VISIBLE = 120;
-const FAVORITES_KEY = "babata.favorites.v1";
 
 /**
  * Searchable coin selector listing the top 1000+ coins from CoinGecko.
@@ -36,31 +36,33 @@ export const CoinSelector: React.FC<CoinSelectorProps> = ({
   onLoadMore,
   hasMore = false,
 }) => {
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  // Favorites carry the full coin descriptor (not just ids) so the Watch Grid
+  // can render charts without refetching. Legacy id-only entries are upgraded
+  // by readFavorites().
+  const [favorites, setFavorites] = useState<FavoriteCoin[]>([]);
+  const favoriteIds = useMemo(() => new Set(favorites.map((f) => f.id)), [favorites]);
 
-  // Favorites survive reloads via localStorage — a list that forgets its
-  // stars every refresh isn't a watchlist.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(FAVORITES_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        setFavorites(new Set(parsed.filter((x): x is string => typeof x === "string")));
-      }
-    } catch {
-      // Corrupt storage: start fresh.
-    }
+    setFavorites(readFavorites());
   }, []);
 
-  const toggleFavorite = (id: string, e: React.MouseEvent) => {
+  const toggleFavorite = (coin: CoinSummary, e: React.MouseEvent) => {
     e.stopPropagation();
     setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const exists = prev.some((f) => f.id === coin.id);
+      const next: FavoriteCoin[] = exists
+        ? prev.filter((f) => f.id !== coin.id)
+        : [
+            ...prev,
+            {
+              id: coin.id,
+              symbol: coin.symbol,
+              name: coin.name,
+              tradingViewSymbol: coin.tradingViewSymbol,
+            },
+          ];
       try {
-        localStorage.setItem(FAVORITES_KEY, JSON.stringify([...next]));
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
       } catch {
         // Storage blocked: favorites stay for this session only.
       }
@@ -69,10 +71,10 @@ export const CoinSelector: React.FC<CoinSelectorProps> = ({
   };
 
   const ordered = useMemo(() => {
-    const favs = coins.filter((c) => favorites.has(c.id));
-    const rest = coins.filter((c) => !favorites.has(c.id));
+    const favs = coins.filter((c) => favoriteIds.has(c.id));
+    const rest = coins.filter((c) => !favoriteIds.has(c.id));
     return [...favs, ...rest];
-  }, [coins, favorites]);
+  }, [coins, favoriteIds]);
 
   const visible = ordered.slice(0, MAX_VISIBLE);
 
@@ -124,7 +126,7 @@ export const CoinSelector: React.FC<CoinSelectorProps> = ({
 
         {visible.map((coin) => {
           const isSelected = coin.id === selectedId;
-          const isFav = favorites.has(coin.id);
+          const isFav = favoriteIds.has(coin.id);
           const positive = (coin.change24h ?? 0) >= 0;
           return (
             <button
@@ -189,11 +191,11 @@ export const CoinSelector: React.FC<CoinSelectorProps> = ({
               <span
                 role="button"
                 tabIndex={0}
-                onClick={(e) => toggleFavorite(coin.id, e)}
+                onClick={(e) => toggleFavorite(coin, e)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    toggleFavorite(coin.id, e as unknown as React.MouseEvent);
+                    toggleFavorite(coin, e as unknown as React.MouseEvent);
                   }
                 }}
                 className="p-1 rounded hover:bg-surface-2 transition-colors shrink-0"

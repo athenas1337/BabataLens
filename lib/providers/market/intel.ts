@@ -269,6 +269,49 @@ export async function getPortfolioPrices(ids: string[]): Promise<PortfolioPrice[
   );
 }
 
+// ── Sparklines (CoinGecko /coins/markets?sparkline=true) ─────────────
+
+const SparkRowSchema = z.object({
+  id: z.string(),
+  sparkline_in_7d: z.object({ price: z.array(z.number()) }).optional().default({ price: [] }),
+});
+
+export interface SparklineRow {
+  id: string;
+  /** Last N points of the 7d hourly series (oldest → newest). */
+  points: number[];
+}
+
+/** Pure mapper — exported for regression tests. */
+export function mapSparklines(raw: unknown, tailPoints = 48): Record<string, number[]> {
+  const parsed = z.array(SparkRowSchema).safeParse(raw);
+  if (!parsed.success) throw new Error("Sparkline feed returned unexpected data");
+  const out: Record<string, number[]> = {};
+  for (const row of parsed.data) {
+    const series = row.sparkline_in_7d.price;
+    if (series.length >= 2) {
+      out[row.id] = series.slice(-tailPoints);
+    }
+  }
+  return out;
+}
+
+/** Batched 7d sparklines for a set of coin ids (movers chart bars). */
+export async function getSparklines(ids: string[], tailPoints = 48): Promise<Record<string, number[]>> {
+  if (ids.length === 0) return {};
+  const unique = Array.from(new Set(ids.map((i) => i.trim().toLowerCase()))).slice(0, 40);
+  // Cache key carries the id set (see getPortfolioPrices — same isolation rule).
+  const key = `sparklines.${unique.slice().sort().join(",")}.${tailPoints}`;
+  return cached(key, 300, async () =>
+    mapSparklines(
+      await fetchJson(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${unique.join(",")}&sparkline=true&per_page=250`
+      ),
+      tailPoints
+    )
+  );
+}
+
 // ── Coin profile (CoinGecko /coins/{id}) ─────────────────────────────
 
 const CoinProfileSchema = z.object({

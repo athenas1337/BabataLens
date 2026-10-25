@@ -3,6 +3,7 @@ import { initializeProviderRegistry } from "@/lib/providers";
 import { MarketDataProvider, CoinSummary } from "@/lib/providers/interfaces";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { authenticateRequest, unauthorizedResponse } from "@/lib/security/auth";
+import { getSparklines } from "@/lib/providers/market/intel";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,8 @@ export const dynamic = "force-dynamic";
  * GET /api/market/movers?limit=10
  *
  * Returns the top gainers and losers from the top-250 coin universe, plus a
- * global sentiment snapshot. Backed by CoinGecko via the provider registry.
+ * global sentiment snapshot and (best-effort) 7d sparklines for the movers.
+ * Backed by CoinGecko via the provider registry.
  */
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -55,6 +57,17 @@ export async function GET(req: NextRequest) {
     const advancing = withChange.filter((c) => c.change24h > 0).length;
     const declining = withChange.filter((c) => c.change24h < 0).length;
 
+    // Sparklines are decoration: one batched call, and their failure must
+    // never fail the movers payload (rows simply render without a chart).
+    let sparklines: Record<string, number[]> | undefined;
+    try {
+      sparklines = await getSparklines(
+        [...gainers, ...losers].map((c) => c.id)
+      );
+    } catch {
+      sparklines = undefined;
+    }
+
     return NextResponse.json(
       {
         gainers,
@@ -69,6 +82,7 @@ export async function GET(req: NextRequest) {
               ? Math.round((advancing / withChange.length) * 100)
               : 50,
         },
+        sparklines,
         source: { provider: provider.id, fetchedAt: new Date().toISOString() },
       },
       {

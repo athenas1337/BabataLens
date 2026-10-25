@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import { ShieldAlert, ShieldCheck } from "lucide-react";
+import { ShieldAlert, ShieldCheck, Download } from "lucide-react";
 import { WalletBalance, Transaction } from "@/lib/providers/interfaces";
 import { apiFetch } from "@/lib/api/client";
+import { toTransactionsCsv, downloadCsv } from "@/lib/utils/csv";
 
 interface AddressRisk {
   riskLevel: "high" | "medium" | "low" | "info";
@@ -246,7 +247,34 @@ export const WalletInspector: React.FC = () => {
               <h3 className="text-sm font-mono font-bold text-gray-200">
                 RECENT TRANSACTIONS ({transactions.length})
               </h3>
-              <span className="text-[11px] font-mono text-gray-400">Confirmed</span>
+              <div className="flex items-center gap-2">
+                {transactions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadCsv(
+                        toTransactionsCsv(
+                          transactions.map((tx) => ({
+                            hash: tx.hash,
+                            timestamp: tx.timestamp,
+                            from: tx.from,
+                            to: tx.to ?? "",
+                            value: tx.value,
+                            status: tx.status,
+                            network: tx.network,
+                          }))
+                        ),
+                        `babata-transactions-${new Date().toISOString().slice(0, 10)}.csv`
+                      )
+                    }
+                    title="Download transactions as CSV"
+                    className="px-2 py-1 rounded-lg bg-surface-1 border border-surface-border text-[11px] font-mono text-cyan-glow hover:text-cyan-neon transition-all flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" /> CSV
+                  </button>
+                )}
+                <span className="text-[11px] font-mono text-gray-400">Confirmed</span>
+              </div>
             </div>
 
             {transactions.length === 0 ? (

@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, RefreshCw, Trash2, Wallet, Search, Info } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Trash2, Wallet, Search, Info, Download } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useCoinUniverse } from "@/lib/hooks/useCoinUniverse";
+import { toPortfolioCsv, downloadCsv } from "@/lib/utils/csv";
 
 interface Holding {
   coinId: string;
@@ -188,6 +189,31 @@ export const Portfolio: React.FC = () => {
           <div className="flex items-center gap-3">
             {fetchedAt && !loading && (
               <span className="text-[11px] font-mono text-gray-500">updated {fetchedAt}</span>
+            )}
+            {holdings.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const csvRows = rows.map((r) => ({
+                    symbol: r.symbol,
+                    name: prices[r.coinId]?.name,
+                    coinId: r.coinId,
+                    amount: r.amount,
+                    priceUsd: r.price,
+                    valueUsd: r.value,
+                    change24hPct: r.change24hPct,
+                  }));
+                  downloadCsv(
+                    toPortfolioCsv(csvRows),
+                    `babata-portfolio-${new Date().toISOString().slice(0, 10)}.csv`
+                  );
+                }}
+                title="Download your holdings as CSV"
+                className="px-3 py-1.5 rounded-lg bg-surface-1 hover:bg-surface-2 border-surface-border text-xs font-mono text-cyan-glow hover:text-cyan-neon transition-all flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5" />
+                CSV
+              </button>
             )}
             <button
               type="button"

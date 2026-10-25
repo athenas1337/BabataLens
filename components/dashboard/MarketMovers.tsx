@@ -14,6 +14,7 @@ interface MoversResponse {
     total: number;
     score: number;
   };
+  sparklines?: Record<string, number[]>;
   source: { provider: string; fetchedAt: string };
 }
 
@@ -157,20 +158,29 @@ export const MarketMovers: React.FC<MarketMoversProps> = ({ onSelect, limit = 6 
                     <div className="text-[10px] font-mono text-gray-500 truncate">{coin.name}</div>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xs font-mono text-gray-200">
-                    {coin.priceUsd !== undefined
-                      ? `$${coin.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 6 })}`
-                      : "--"}
-                  </div>
-                  <div
-                    className={`text-[11px] font-mono font-bold flex items-center gap-0.5 justify-end ${
-                      up ? "text-emerald-cyber" : "text-rose-flare"
-                    }`}
-                  >
-                    {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {up ? "+" : ""}
-                    {(coin.change24h ?? 0).toFixed(2)}%
+                <div className="flex items-center gap-3 shrink-0">
+                  {data?.sparklines?.[coin.id] && data.sparklines[coin.id].length > 1 && (
+                    <Sparkline
+                      points={data.sparklines[coin.id]}
+                      up={up}
+                      title="7d price shape (CoinGecko, hourly)"
+                    />
+                  )}
+                  <div className="text-right">
+                    <div className="text-xs font-mono text-gray-200">
+                      {coin.priceUsd !== undefined
+                        ? `$${coin.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 6 })}`
+                        : "--"}
+                    </div>
+                    <div
+                      className={`text-[11px] font-mono font-bold flex items-center gap-0.5 justify-end ${
+                        up ? "text-emerald-cyber" : "text-rose-flare"
+                      }`}
+                    >
+                      {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {up ? "+" : ""}
+                      {(coin.change24h ?? 0).toFixed(2)}%
+                    </div>
                   </div>
                 </div>
               </button>
@@ -179,6 +189,29 @@ export const MarketMovers: React.FC<MarketMoversProps> = ({ onSelect, limit = 6 
         )}
       </div>
     </div>
+  );
+};
+
+/** Tiny inline SVG of the 7d hourly series — pure decoration. */
+const Sparkline: React.FC<{ points: number[]; up: boolean; title?: string }> = ({
+  points,
+  up,
+  title,
+}) => {
+  const W = 44;
+  const H = 18;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = max - min || 1;
+  const step = W / (points.length - 1);
+  const path = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(H - ((p - min) / span) * (H - 2) - 1).toFixed(1)}`)
+    .join(" ");
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="shrink-0" aria-hidden="true">
+      {title && <title>{title}</title>}
+      <path d={path} fill="none" stroke={up ? "#10b981" : "#f43f5e"} strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
   );
 };
 

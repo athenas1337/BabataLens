@@ -10,6 +10,7 @@ import { CoinSelector } from "./CoinSelector";
 import { MarketMovers } from "./MarketMovers";
 import { MarketPulse } from "./MarketPulse";
 import { CoinProfile } from "./CoinProfile";
+import { WatchGrid } from "./WatchGrid";
 import { PriceAlerts } from "./PriceAlerts";
 import { TradingViewAdvancedChart } from "../charts/TradingViewAdvancedChart";
 
@@ -274,6 +275,9 @@ export const MarketTerminal: React.FC = () => {
 
           {/* Market Movers */}
           <MarketMovers onSelect={handleSelect} limit={6} />
+
+          {/* Pinned mini charts from starred coins */}
+          <WatchGrid />
         </div>
       </div>
     </div>

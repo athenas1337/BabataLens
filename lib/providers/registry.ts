@@ -52,7 +52,10 @@ export class ProviderRegistry {
     if (!record || record.count < 3) return false;
     const cooldownMs = 60000; // 60s cooldown
     if (Date.now() - record.lastFailedAt > cooldownMs) {
-      // Cooldown expired, half-open test
+      // Cooldown expired: give the provider a clean slate. Without this reset
+      // the stale count meant a single new failure re-opened the circuit
+      // indefinitely, even after long stable periods.
+      this.failures.delete(providerId);
       return false;
     }
     return true;
@@ -174,13 +177,12 @@ export class ProviderRegistry {
       }
 
       const start = Date.now();
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const ok = await Promise.race([
-          provider.healthCheck(),
-          new Promise<boolean>((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), manifest.timeoutMs)
-          ),
-        ]);
+        const timeoutPromise = new Promise<boolean>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Timeout")), manifest.timeoutMs);
+        });
+        const ok = await Promise.race([provider.healthCheck(), timeoutPromise]);
         const latencyMs = Date.now() - start;
         const status = ok ? "connected" : "degraded";
 
@@ -204,6 +206,9 @@ export class ProviderRegistry {
           latencyMs,
         });
         await db.updateProviderHealth(id, manifest.capability, "unavailable", latencyMs);
+      } finally {
+        // Never leave the losing timeout promise's timer pending.
+        if (timer !== undefined) clearTimeout(timer);
       }
     }
 

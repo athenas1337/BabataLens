@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { History, Plus, Trash2, X } from "lucide-react";
 import { BabataAvatar } from "../avatar/BabataAvatar";
 import { BabataAvatarState } from "@/lib/agent/orchestrator";
 import { apiFetch } from "@/lib/api/client";
@@ -20,6 +21,13 @@ interface ChatMessage {
   content: string;
   toolCalls?: ToolCallTrace[];
   sources?: { provider: string; timestamp: string }[];
+}
+
+interface ConversationRow {
+  id: string;
+  title?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export const ChatPanel: React.FC = () => {
@@ -43,6 +51,94 @@ export const ChatPanel: React.FC = () => {
   // Conversation id is persisted server-side; keeping it lets follow-up turns
   // reuse the same thread (and its history) instead of starting a new one.
   const [conversationId, setConversationId] = useState<string | null>(null);
+
+  // ── Thread history (server-persisted via /api/conversations) ──────
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [conversations, setConversations] = useState<ConversationRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [threadLoading, setThreadLoading] = useState(false);
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await apiFetch("/api/conversations");
+      const json = (await res.json()) as { conversations?: ConversationRow[]; error?: string };
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setConversations(json.conversations || []);
+    } catch (err: unknown) {
+      setHistoryError(err instanceof Error ? err.message : "Failed to load history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const toggleHistory = () => {
+    const next = !historyOpen;
+    setHistoryOpen(next);
+    if (next) void loadHistory();
+  };
+
+  const openThread = async (id: string) => {
+    if (threadLoading || isLoading) return;
+    setThreadLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await apiFetch(`/api/conversations/${id}`);
+      const json = (await res.json()) as {
+        conversation?: ConversationRow;
+        messages?: { id: string; role: string; content: string; sources?: { provider: string; fetchedAt: string }[] }[];
+        error?: string;
+      };
+      if (!res.ok || !json.messages) throw new Error(json.error || `HTTP ${res.status}`);
+      // The stored thread replaces the in-memory one; tool traces were not
+      // persisted, only text + sources.
+      const restored: ChatMessage[] = json.messages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          sources: m.sources?.map((s) => ({ provider: s.provider, timestamp: s.fetchedAt })),
+        }));
+      if (restored.length === 0) throw new Error("Thread has no restoreable messages");
+      setConversationId(id);
+      setMessages(restored);
+      setHistoryOpen(false);
+    } catch (err: unknown) {
+      setHistoryError(err instanceof Error ? err.message : "Failed to open thread");
+    } finally {
+      setThreadLoading(false);
+    }
+  };
+
+  const deleteThread = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/conversations/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (conversationId === id) startNewChat();
+    } catch {
+      // Leave the list untouched on failure; the row simply stays.
+    }
+  };
+
+  const startNewChat = () => {
+    setConversationId(null);
+    setMessages([
+      {
+        id: `welcome-${Date.now()}`,
+        role: "assistant",
+        content:
+          "Greetings, Operator. I am **Babata**, your autonomous cryptocurrency and blockchain intelligence analyst. I query live market feeds and on-chain data on demand — prices, wallet balances, transaction history, contract verification and holder concentration. Every figure I report comes from a named data provider, and I will say so when a source is unavailable rather than guess. Select a prompt or query any token, contract, or wallet.",
+      },
+    ]);
+    setCurrentStreamingText("");
+    setCurrentToolTraces([]);
+    setCurrentSources([]);
+    setHistoryOpen(false);
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -236,12 +332,106 @@ export const ChatPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Status Indicator */}
-        <div className="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-surface-1 border border-surface-border">
-          <span className="w-2 h-2 rounded-full bg-emerald-cyber animate-pulse" />
-          <span className="text-[11px] font-mono text-gray-300">TELEMETRY: VERIFIED</span>
+        {/* Status Indicator + Thread Controls */}
+        <div className="flex items-center space-x-2">
+          <div className="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-surface-1 border border-surface-border">
+            <span className="w-2 h-2 rounded-full bg-emerald-cyber animate-pulse" />
+            <span className="text-[11px] font-mono text-gray-300">TELEMETRY: VERIFIED</span>
+          </div>
+          <button
+            type="button"
+            onClick={startNewChat}
+            title="Start a new analysis thread"
+            className="p-2 rounded-lg bg-surface-1 border border-surface-border text-gray-300 hover:text-cyan-neon hover:border-cyan-neon/40 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={toggleHistory}
+            title="Past analysis threads"
+            className={`p-2 rounded-lg border transition-all ${
+              historyOpen
+                ? "bg-cyan-neon/15 border-cyan-neon/40 text-cyan-neon"
+                : "bg-surface-1 border-surface-border text-gray-300 hover:text-cyan-neon hover:border-cyan-neon/40"
+            }`}
+          >
+            <History className="w-4 h-4" />
+          </button>
         </div>
       </div>
+
+      {/* History Drawer */}
+      {historyOpen && (
+        <div className="mb-4 p-4 rounded-xl glass-hud border border-surface-border">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-mono font-bold text-gray-200 uppercase tracking-wider">
+              Analysis Threads
+            </span>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(false)}
+              aria-label="Close history"
+              className="p-1 rounded text-gray-500 hover:text-gray-200 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {historyLoading && (
+            <p className="text-xs font-mono text-gray-400 py-3">Loading threads…</p>
+          )}
+          {historyError && (
+            <p className="text-xs font-mono text-amber-glow py-2">{historyError}</p>
+          )}
+          {!historyLoading && conversations.length === 0 && !historyError && (
+            <p className="text-xs font-mono text-gray-500 py-3 leading-relaxed">
+              No saved threads yet. Conversations are saved server-side once
+              DATABASE_URL is configured; without it they live only in this
+              server instance's memory.
+            </p>
+          )}
+          {conversations.length > 0 && (
+            <div className="max-h-56 overflow-y-auto space-y-1">
+              {conversations.map((c) => (
+                <div
+                  key={c.id}
+                  className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs font-mono transition-colors ${
+                    c.id === conversationId
+                      ? "bg-cyan-neon/10 border-cyan-neon/40"
+                      : "bg-surface-1/70 border-surface-border hover:border-cyan-neon/30"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => void openThread(c.id)}
+                    disabled={threadLoading || isLoading}
+                    className="flex-1 min-w-0 text-left disabled:opacity-50"
+                  >
+                    <span className="block truncate text-gray-100">
+                      {c.title || "Untitled thread"}
+                    </span>
+                    <span className="text-[10px] text-gray-500">
+                      {c.updatedAt || c.createdAt
+                        ? new Date(c.updatedAt || c.createdAt || "").toLocaleString()
+                        : "time unknown"}
+                      {c.id === conversationId ? " · current" : ""}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteThread(c.id)}
+                    aria-label={`Delete thread ${c.title || c.id}`}
+                    className="p-1 rounded text-gray-500 hover:text-rose-flare transition-colors shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-4 min-h-[400px]">

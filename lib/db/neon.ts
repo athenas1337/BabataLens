@@ -324,7 +324,9 @@ export class NeonDatabase implements IDatabase {
 type Row = Record<string, unknown>;
 
 function toIso(value: unknown): string {
-  if (!value) return new Date().toISOString();
+  // A missing DB timestamp is "unknown" — never fabricate "now" as a
+  // stand-in (same honesty rule as the on-chain providers).
+  if (!value) return "";
   if (value instanceof Date) return value.toISOString();
   return String(value);
 }

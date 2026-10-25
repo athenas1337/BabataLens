@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Search, Star, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { CoinSummary } from "@/lib/providers/interfaces";
 
@@ -18,6 +18,7 @@ export interface CoinSelectorProps {
 }
 
 const MAX_VISIBLE = 120;
+const FAVORITES_KEY = "babata.favorites.v1";
 
 /**
  * Searchable coin selector listing the top 1000+ coins from CoinGecko.
@@ -37,12 +38,32 @@ export const CoinSelector: React.FC<CoinSelectorProps> = ({
 }) => {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
+  // Favorites survive reloads via localStorage — a list that forgets its
+  // stars every refresh isn't a watchlist.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FAVORITES_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setFavorites(new Set(parsed.filter((x): x is string => typeof x === "string")));
+      }
+    } catch {
+      // Corrupt storage: start fresh.
+    }
+  }, []);
+
   const toggleFavorite = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setFavorites((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      try {
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify([...next]));
+      } catch {
+        // Storage blocked: favorites stay for this session only.
+      }
       return next;
     });
   };
